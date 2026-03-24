@@ -2,18 +2,15 @@ pipeline {
     agent any
 
     environment {
-       
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
         DOCKER_IMAGE_NAME     = 'ruchikaranaa/docker-based-pipeline'
-        IMAGE_TAG             = "${env.BUILD_NUMBER}"
+        IMAGE_TAG             = "${BUILD_NUMBER}"
 
-        // Deploy targets 
-        DEV_SERVER            = 'dev-server.example.com'
-        STAGING_SERVER        = 'staging-server.example.com'
-        PROD_SERVER           = 'prod-server.example.com'
+        DEV_SERVER     = 'dev-server.example.com'
+        STAGING_SERVER = 'staging-server.example.com'
+        PROD_SERVER    = 'prod-server.example.com'
 
-        // SSH credentials ID (Jenkins credentials mein store karo)
-        SSH_CREDENTIALS_ID    = 'ssh-deploy-key'
+        SSH_CREDENTIALS_ID = 'ssh-deploy-key'
     }
 
     options {
@@ -24,168 +21,106 @@ pipeline {
 
     stages {
 
-        // ─────────────────────────────────────────────
-        // STAGE 1: SOURCE CODE CHECKOUT
-        // ─────────────────────────────────────────────
         stage('Checkout') {
             steps {
-                echo '>>> Source code checkout...'
+                echo '>>> Checkout...'
                 checkout scm
-                echo ">>> Git Branch: ${env.GIT_BRANCH}"
-                echo ">>> Git Commit: ${env.GIT_COMMIT}"
             }
         }
 
-        // ─────────────────────────────────────────────
-        // STAGE 2: BUILD
-        // Docker multi-stage build 
-        // ─────────────────────────────────────────────
         stage('Build') {
             steps {
-                echo '>>> Application build ...'
-                // Agar aapke paas build script hai (jaise npm install, maven, etc.)
-                // Yahan Docker ke andar build hogi, isliye simple validation bhi chalega
-                sh '''
-                    echo "Build environment check:"
-                    docker version
-                    docker compose version || true
-                    echo "Source files:"
-                    ls -la
-                '''
+                echo '>>> Build check...'
+                sh 'docker version'
             }
         }
 
-        // ─────────────────────────────────────────────
-        // STAGE 3: TEST
-        // Docker container tests run 
-        // ─────────────────────────────────────────────
         stage('Test') {
             steps {
-                echo '>>> Tests chal rahe hain...'
-                sh '''
-                    # Docker image temporarily build
-                    docker build --target test -t ruchikaranaa/docker-based-pipeline:test-${IMAGE_TAG} . || \
+                echo '>>> Running tests...'
+                sh """
                     docker build -t ruchikaranaa/docker-based-pipeline:test-${IMAGE_TAG} .
-
-                    # Container mein tests
-                    docker run --rm \
-                        --name test-runner-${IMAGE_TAG} \
-                        ruchikaranaa/docker-based-pipeline:test-${IMAGE_TAG} \
-                        sh -c "echo 'Tests pass !' && exit 0"
-
-                    # Test image cleanup
-                    docker rmi ruchikaranaa/docker-based-pipeline:test-${IMAGE_TAG} || true
-                '''
+                    docker run --rm ruchikaranaa/docker-based-pipeline:test-${IMAGE_TAG}
+                    docker rmi 'ruchikaranaa/docker-based-pipeline:test-${IMAGE_TAG} || true
+                """
             }
-            post {
-                always {
-                    // Test reports publish
-                    junit allowEmptyResults: true, testResults: '**/test-results/*.xml'
+        }
+
+        // Docker login added
+        stage('Docker Build & Push') {
+            steps {
+                script {
+                    docker.withRegistry('', DOCKER_CREDENTIALS_ID) {
+                        sh """
+                            docker build -t ruchikaranaa/docker-based-pipeline:${IMAGE_TAG} .
+                            docker tag ruchikaranaa/docker-based-pipeline:${IMAGE_TAG} ruchikaranaa/docker-based-pipeline:latest
+                            docker push ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+                            docker push ruchikaranaa/docker-based-pipeline:latest
+                        """
+                    }
                 }
             }
         }
 
-        // ─────────────────────────────────────────────
-        // STAGE 4: DOCKER IMAGE BUILD & PUSH
-        // Final production image build registry push
-        // ─────────────────────────────────────────────
-        
-        stage('Docker Image Build & Push') {
-    steps {
-        echo ">>> Docker image build ... : ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}"
-        sh """
-            docker build -t ruchikaranaa/docker-based-pipeline:${IMAGE_TAG} .
-            docker tag ruchikaranaa/docker-based-pipeline:${IMAGE_TAG} ruchikaranaa/docker-based-pipeline:latest
-            docker push ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
-            docker push ruchikaranaa/docker-based-pipeline:latest
-        """
-    }
-}
+        // : SSH remote deploy
+        stage('Deploy: Dev') {
+            steps {
+                sshagent([SSH_CREDENTIALS_ID]) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@${DEV_SERVER} '
+                        docker pull ruchikaranaa/docker-based-pipeline:${IMAGE_TAG} &&
+                        docker stop app-dev || true &&
+                        docker rm app-dev || true &&
+                        docker run -d --name app-dev -p 8081:80 ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+                        '
+                    """
+                }
+            }
+        }
 
-        // ─────────────────────────────────────────────
-        // STAGE 5a: DEPLOY → DEV
-        // Automatically deploy on every push
-        // ─────────────────────────────────────────────
-       stage('Deploy: Dev') {
-    steps {
-        echo ">>> Dev deploy ..."
-        sh """
-            docker pull ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
-            docker stop app-dev || true
-            docker rm app-dev || true
-            docker run -d \
-                --name app-dev \
-                --restart unless-stopped \
-                -p 8081:80 \
-                ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
-            echo "Dev deploy complete!"
-        """
-    }
-}
-        // ─────────────────────────────────────────────
-        // STAGE 5b: DEPLOY → STAGING
-        // Dev automatically staging deploy
-        // ─────────────────────────────────────────────
         stage('Deploy: Staging') {
-    steps {
-        echo ">>> Staging deploy ..."
-        sh """
-            docker pull ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
-            docker stop app-staging || true
-            docker rm app-staging || true
-            docker run -d \
-                --name app-staging \
-                --restart unless-stopped \
-                -p 8082:80 \
-                ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
-            echo "Staging deploy complete!"
-        """
-    }
-}
+            steps {
+                sshagent([SSH_CREDENTIALS_ID]) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@${STAGING_SERVER} '
+                        docker pull ruchikaranaa/docker-based-pipeline:${IMAGE_TAG} &&
+                        docker stop app-staging || true &&
+                        docker rm app-staging || true &&
+                        docker run -d --name app-staging -p 8082:80 ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+                        '
+                    """
+                }
+            }
+        }
 
-        // ─────────────────────────────────────────────
-        // STAGE 5c: DEPLOY → PRODUCTION
-        // Manual approval production deploy
-        // ─────────────────────────────────────────────
-       stage('Deploy: Production') {
-    steps {
-        echo ">>> Production deploy ..."
-        sh """
-            docker pull ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
-            docker stop app-prod || true
-            docker rm app-prod || true
-            docker run -d \
-                --name app-prod \
-                --restart unless-stopped \
-                -p 8083:80 \
-                ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
-            echo "Production deploy complete!"
-        """
-    }
-}
+        // FIX: Manual approval added
+        stage('Deploy: Production') {
+            steps {
+                input message: "Deploy to PRODUCTION?", ok: "Deploy"
 
-    // ─────────────────────────────────────────────
-    // POST ACTIONS: Success / Failure notifications
-    // ─────────────────────────────────────────────
+                sshagent([SSH_CREDENTIALS_ID]) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no ubuntu@${PROD_SERVER} '
+                        docker pull ruchikaranaa/docker-based-pipeline:${IMAGE_TAG} &&
+                        docker stop app-prod || true &&
+                        docker rm app-prod || true &&
+                        docker run -d --name app-prod -p 8083:80 ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+                        '
+                    """
+                }
+            }
+        }
+    }
+
     post {
         success {
-            echo "Pipeline SUCCESSFULL! Build #${IMAGE_TAG}"
-            // Email notification (Jenkins Email plugin chahiye)
-            // mail to: 'team@example.com',
-            //      subject: "SUCCESS: Build #${IMAGE_TAG}",
-            //      body: "Pipeline successfully complete ho gayi."
+            echo "SUCCESS: Build #${IMAGE_TAG}"
         }
         failure {
-            echo "Pipeline FAIL! Build #${IMAGE_TAG}"
-            // mail to: 'team@example.com',
-            //      subject: "FAILED: Build #${IMAGE_TAG}",
-            //      body: "Pipeline fail ho gayi. Logs check karo."
+            echo "FAILED: Build #${IMAGE_TAG}"
         }
         always {
-            echo '>>> Cleanup: Dangling Docker images remove ...'
             sh 'docker image prune -f || true'
         }
     }
-}
-
 }

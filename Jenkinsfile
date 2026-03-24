@@ -106,115 +106,63 @@ pipeline {
         // STAGE 5a: DEPLOY → DEV
         // Automatically deploy on every push
         // ─────────────────────────────────────────────
-        stage('Deploy: Dev') {
-            when {
-                anyOf {
-                    branch 'develop'
-                    branch 'main'
-                }
-            }
-            steps {
-                echo ">>> Dev server par deploy ho raha hai: ${DEV_SERVER}"
-                sshagent(credentials: [SSH_CREDENTIALS_ID]) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no deploy@${DEV_SERVER} '
-                            docker pull ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
-                            docker stop app-dev || true
-                            docker rm app-dev || true
-                            docker run -d \
-                                --name app-dev \
-                                --restart unless-stopped \
-                                -p 8080:8080 \
-                                -e APP_ENV=development \
-                                ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
-                            echo "Dev deploy complete!"
-                        '
-                    """
-                }
-            }
-        }
-
+       stage('Deploy: Dev') {
+    steps {
+        echo ">>> Dev par deploy ho raha hai..."
+        sh """
+            docker pull ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+            docker stop app-dev || true
+            docker rm app-dev || true
+            docker run -d \
+                --name app-dev \
+                --restart unless-stopped \
+                -p 8081:80 \
+                ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+            echo "Dev deploy complete!"
+        """
+    }
+}
         // ─────────────────────────────────────────────
         // STAGE 5b: DEPLOY → STAGING
         // Dev ke baad automatically staging par deploy
         // ─────────────────────────────────────────────
         stage('Deploy: Staging') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo ">>> Staging server par deploy ho raha hai: ${STAGING_SERVER}"
-                sshagent(credentials: [SSH_CREDENTIALS_ID]) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no deploy@${STAGING_SERVER} '
-                            docker pull ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
-                            docker stop app-staging || true
-                            docker rm app-staging || true
-                            docker run -d \
-                                --name app-staging \
-                                --restart unless-stopped \
-                                -p 8080:8080 \
-                                -e APP_ENV=staging \
-                                ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
-                            echo "Staging deploy complete!"
-                        '
-                    """
-                }
-            }
-        }
+    steps {
+        echo ">>> Staging par deploy ho raha hai..."
+        sh """
+            docker pull ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+            docker stop app-staging || true
+            docker rm app-staging || true
+            docker run -d \
+                --name app-staging \
+                --restart unless-stopped \
+                -p 8082:80 \
+                ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+            echo "Staging deploy complete!"
+        """
+    }
+}
 
         // ─────────────────────────────────────────────
         // STAGE 5c: DEPLOY → PRODUCTION
         // Manual approval ke baad hi production deploy
         // ─────────────────────────────────────────────
-        stage('Approval: Prod Deploy?') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo '>>> Production deploy ke liye manual approval chahiye!'
-                timeout(time: 30, unit: 'MINUTES') {
-                    input message: "Production par deploy karna hai?",
-                          ok: "Haan, Deploy Karo!",
-                          submitterParameter: 'APPROVED_BY'
-                }
-            }
-        }
-
-        stage('Deploy: Production') {
-            when {
-                branch 'main'
-            }
-            steps {
-                echo ">>> PRODUCTION server par deploy ho raha hai: ${PROD_SERVER}"
-                sshagent(credentials: [SSH_CREDENTIALS_ID]) {
-                    sh """
-                        ssh -o StrictHostKeyChecking=no deploy@${PROD_SERVER} '
-                            # Zero-downtime deploy ke liye pehle pull karo
-                            docker pull ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
-
-                            # Old container gracefully stop karo
-                            docker stop app-prod || true
-                            docker rm app-prod || true
-
-                            # Naya container start karo
-                            docker run -d \
-                                --name app-prod \
-                                --restart unless-stopped \
-                                -p 80:8080 \
-                                -e APP_ENV=production \
-                                ${DOCKER_IMAGE_NAME}:${IMAGE_TAG}
-
-                            # Health check
-                            sleep 10
-                            docker ps | grep app-prod
-                            echo "Production deploy SUCCESSFUL!"
-                        '
-                    """
-                }
-            }
-        }
+       stage('Deploy: Production') {
+    steps {
+        echo ">>> Production par deploy ho raha hai..."
+        sh """
+            docker pull ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+            docker stop app-prod || true
+            docker rm app-prod || true
+            docker run -d \
+                --name app-prod \
+                --restart unless-stopped \
+                -p 8083:80 \
+                ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+            echo "Production deploy complete!"
+        """
     }
+}
 
     // ─────────────────────────────────────────────
     // POST ACTIONS: Success / Failure notifications

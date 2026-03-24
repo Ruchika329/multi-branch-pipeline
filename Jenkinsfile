@@ -4,7 +4,7 @@ pipeline {
     environment {
         // DockerHub ya apni registry ki credentials ID (Jenkins credentials mein store karo)
         DOCKER_CREDENTIALS_ID = 'dockerhub-creds'
-        DOCKER_IMAGE_NAME     = 'ruchika329/docker-based-pipeline'
+        DOCKER_IMAGE_NAME     = 'ruchikaranaa/docker-based-pipeline'
         IMAGE_TAG             = "${env.BUILD_NUMBER}"
 
         // Deploy targets (apne server IPs/hostnames se replace karo)
@@ -92,12 +92,12 @@ pipeline {
         
         stage('Docker Image Build & Push') {
     steps {
-        echo ">>> Docker image build ho rahi hai: ruchika329/docker-based-pipeline:${IMAGE_TAG}"
+        echo ">>> Docker image build ho rahi hai: ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}"
         sh """
-            docker build -t ruchika329/docker-based-pipeline:${IMAGE_TAG} .
-            docker tag ruchika329/docker-based-pipeline:${IMAGE_TAG} ruchika329/docker-based-pipeline:latest
-            docker push ruchika329/docker-based-pipeline:${IMAGE_TAG}
-            docker push ruchika329/docker-based-pipeline:latest
+            docker build -t ruchikaranaa/docker-based-pipeline:${IMAGE_TAG} .
+            docker tag ruchikaranaa/docker-based-pipeline:${IMAGE_TAG} ruchikaranaa/docker-based-pipeline:latest
+            docker push ruchikaranaa/docker-based-pipeline:${IMAGE_TAG}
+            docker push ruchikaranaa/docker-based-pipeline:latest
         """
     }
 }

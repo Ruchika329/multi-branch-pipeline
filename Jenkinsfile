@@ -11,7 +11,9 @@ pipeline {
 
         stage('Deploy Main') {
             when {
-                branch 'main'
+                expression {
+                    env.BRANCH_NAME == 'main'
+                }
             }
             steps {
                 sh 'cp -r . /var/www/main/'
@@ -20,7 +22,9 @@ pipeline {
 
         stage('Deploy Feature') {
             when {
-                branch 'feature'
+                expression {
+                    env.BRANCH_NAME == 'feature'
+                }
             }
             steps {
                 sh 'cp -r . /var/www/feature/'
@@ -29,10 +33,13 @@ pipeline {
 
         stage('Prefix Check') {
             when {
-                branch 'prefix'
+                expression {
+                    env.BRANCH_NAME == 'prefix'
+                }
             }
             steps {
-                echo 'Prefix branch - only checking, not deploying'
+                echo "Branch hai: ${env.BRANCH_NAME}"
+                echo 'Prefix branch - only checking'
             }
         }
 

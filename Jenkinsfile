@@ -3,7 +3,7 @@ pipeline {
 
     stages {
 
-        stage('Clean Workspace') {
+        stage('Clean') {
             steps {
                 deleteDir()
             }
@@ -12,18 +12,29 @@ pipeline {
         stage('Deploy') {
             steps {
                 script {
-                    if (env.BRANCH_NAME == 'feature') {
+                    // GIT_BRANCH = "origin/feature" format mein aata hai
+                    def branch = env.GIT_BRANCH?.replaceAll('origin/', '').trim()
+                    
+                    echo "Branch hai: ${branch}"
+
+                    if (branch == 'feature') {
                         sh '''
-                            echo "Feature Branch"
+                            sudo rm -rf /var/www/feature/*
+                            sudo cp -r . /var/www/feature/
+                            sudo chown -R www-data:www-data /var/www/feature/
                         '''
+                        echo 'Feature deployed!'
                     }
-                    else if (env.BRANCH_NAME == 'main') {
+                    else if (branch == 'main') {
                         sh '''
-                            echo "Main Branch"
+                            sudo rm -rf /var/www/main/*
+                            sudo cp -r . /var/www/main/
+                            sudo chown -R www-data:www-data /var/www/main/
                         '''
+                        echo 'Main deployed!'
                     }
-                    else if (env.BRANCH_NAME == 'prefix') {
-                        echo 'Prefix branch - only checking'
+                    else if (branch == 'prefix') {
+                        echo 'Prefix - only checking'
                     }
                 }
             }

@@ -1,4 +1,1 @@
-
-
-
 # docker-based-pipeline 

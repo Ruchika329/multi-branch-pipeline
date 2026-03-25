@@ -14,18 +14,12 @@ pipeline {
                 script {
                     if (env.BRANCH_NAME == 'feature') {
                         sh '''
-                            sudo rm -rf /var/www/feature/*
-                            sudo cp -r . /var/www/feature/
-                            sudo chown -R www-data:www-data /var/www/feature/
-                            echo "Feature deployed successfully!"
+                            echo "Feature Branch"
                         '''
                     }
                     else if (env.BRANCH_NAME == 'main') {
                         sh '''
-                            sudo rm -rf /var/www/main/*
-                            sudo cp -r . /var/www/main/
-                            sudo chown -R www-data:www-data /var/www/main/
-                            echo "Main deployed successfully!"
+                            echo "Main Branch"
                         '''
                     }
                     else if (env.BRANCH_NAME == 'prefix') {

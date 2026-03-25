@@ -19,17 +19,17 @@ pipeline {
 
                     if (branch == 'feature') {
                         sh '''
-                            sudo rm -rf /var/www/feature/*
-                            sudo cp -r . /var/www/feature/
-                            sudo chown -R www-data:www-data /var/www/feature/
+                            rm -rf /var/www/feature/*
+                            cp -r . /var/www/feature/
+                            
                         '''
                         echo 'Feature deployed!'
                     }
                     else if (branch == 'main') {
                         sh '''
-                            sudo rm -rf /var/www/main/*
-                            sudo cp -r . /var/www/main/
-                            sudo chown -R www-data:www-data /var/www/main/
+                            rm -rf /var/www/main/*
+                            cp -r . /var/www/main/
+                            
                         '''
                         echo 'Main deployed!'
                     }
